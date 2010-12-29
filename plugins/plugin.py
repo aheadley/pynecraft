@@ -1,12 +1,29 @@
+from textwrap import wrap
+
 class Plugin(object):
     def __init__(self, wrapper):
         self._wrapper = wrapper
         self._wrapper.register_plugin(self)
+        self.init()
 
+    def __str__(self):
+        return self.name
+
+    def _wrap_message(self, message):
+        line_width = 44
+        line_indent = '>>'
+        return wrap(
+            message,
+            width=line_width,
+            subsequent_indent=line_indent)
+    
     def init(self):
         self.name = 'Plugin'
 
-    def add_command(self, command, public=False, help_text=None, callback=None):
+    def reload(self):
+        pass
+
+    def add_command(self, command, help_text=None, public=False, callback=None):
         self._wrapper.add_command(command, public, help_text)
         if callback is not None:
             self.register_command(command, callback)
@@ -34,7 +51,7 @@ class Plugin(object):
     def raw_server_command(self, server_command):
         self._wrapper.raw_server_command(server_command)
 
-    def tell(self, player, message, wrap_message=True):
+    def cmd_tell(self, player, message, wrap_message=True):
         if player not in self.get_players():
             raise Pynecraft_Message_Exception(player, 'Not Online')
         else:
@@ -45,7 +62,7 @@ class Plugin(object):
             else:
                 self.raw_server_command('tell %s %s' % (player, message))
 
-    def say(self, message, wrap_message=True):
+    def cmd_say(self, message, wrap_message=True):
         self.log('say', message)
         if wrap_message:
             for line in self._wrap_message(message):
@@ -54,7 +71,7 @@ class Plugin(object):
             self.raw_server_command('say %s' % (player, message))
         
 
-    def ban_player(self, player, reason=None):
+    def cmd_ban_player(self, player, reason=None):
         if player in self.get_banned_players():
             raise Pynecraft_Ban_Exception(player, 'Already Banned')
         else:
@@ -63,7 +80,7 @@ class Plugin(object):
                 self.say('Banning player (%s) because: %s' % (player, reason))
             self.raw_server_command('ban %s' % (player))
 
-    def pardon_player(self, player):
+    def cmd_pardon_player(self, player):
         if player not in self.get_banned_players():
             raise Pynecraft_Ban_Exception(player, 'Not Banned')
         else:
@@ -76,7 +93,7 @@ class Plugin(object):
     def get_banned_players(self):
         return self._wrapper.get_file_lines('banned-players.txt')
 
-    def ban_ip(self, ip, reason=None):
+    def cmd_ban_ip(self, ip, reason=None):
         if ip in self.get_banned_ips():
             raise Pynecraft_Ban_Exception(ip, 'Already Banned')
         else:
@@ -85,7 +102,7 @@ class Plugin(object):
                 self.say('Banning IP (%s) because: %s' % (ip, reason))
             self.raw_server_command('ban-ip %s' % (ip))
 
-    def pardon_ip(self, player):
+    def cmd_pardon_ip(self, player):
         if ip not in self.get_banned_ips():
             raise Pynecraft_Ban_Exception(ip, 'Not Banned')
         else:
@@ -98,7 +115,7 @@ class Plugin(object):
     def get_banned_ips(self):
         return self._wrapper.get_file_lines('banned-ips.txt')
 
-    def kick(self, player, reason=None):
+    def cmd_kick(self, player, reason=None):
         if not self.is_player_online(player):
             raise Pynecraft_Kick_Exception(player, 'Not Online')
         else:
@@ -107,14 +124,14 @@ class Plugin(object):
                 self.say('Kicking player (%s) because: %s')
             self.raw_server_command('kick %s' % (player))
 
-    def op(self, player):
+    def cmd_op(self, player):
         if self.is_op(player):
             raise Pynecraft_Op_Exception(player, 'Already An Op')
         else:
             self.log('op', player)
             self.raw_server_command('op %s')
 
-    def deop(self, player):
+    def cmd_deop(self, player):
         if not self.is_op(player):
             raise Pynecraft_Op_Exception(player, 'Not An Op')
         else:
@@ -127,7 +144,7 @@ class Plugin(object):
     def get_ops(self):
         return self._wrapper.get_file_lines('ops.txt')
 
-    def give(self, player, item_id, amount=1):
+    def cmd_give(self, player, item_id, amount=1):
         amount = max(amount,1)
         if not self.is_player_online(player):
             raise Pynecraft_Give_Exception(player, 'Not Online')
@@ -137,12 +154,12 @@ class Plugin(object):
             stack_size = 64
             stacks,leftover = divmod(amount, stack_size)
             self.log('give', player, item_id, amount)
-            for stack in stacks:
+            for stack in range(stacks):
                 self.raw_server_command('give %s %i %i' % (player, item_id, stack_size))
             if leftover is not 0:
                 self.raw_server_command('give %s %i %i' % (player, item_id, leftover))
 
-    def tp(self, src_player, dest_player):
+    def cmd_tp(self, src_player, dest_player):
         if not self.is_player_online(src_player):
             raise Pynecraft_Teleport_Exception(src_player, 'Not Online')
         elif not self.is_player_online(dest_player):
@@ -151,20 +168,20 @@ class Plugin(object):
             self.log('tp', src_player, dest_player)
             self.raw_server_command('tp %s %s' % (src_player, dest_player))
 
-    def stop(self):
+    def cmd_stop(self):
         self.raw_server_command('stop')
 
-    def set_saving(self, enable=True):
+    def cmd_set_saving(self, enable=True):
         if enable:
             self.raw_server_command('save-on')
         else:
             self.raw_server_command('save-off')
 
-    def save(self):
+    def cmd_save(self):
         self.raw_server_command('save-all')
 
     def is_player_online(self, player):
         return player in self.get_online_players()
 
     def get_online_players(self):
-        pass
+        return []
