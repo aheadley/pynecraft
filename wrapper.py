@@ -3,6 +3,8 @@ import subprocess
 import select
 import sys
 import os.path
+import re
+import ConfigParser
 
 import plugins
 import events
@@ -15,31 +17,51 @@ class Wrapper(object):
         self._events = {}
         self._file_dir = ''
         self._server_connection = None
+        self._server_start_time = None
         self._running = False
 
         self.add_event('command', events.basic_events['command'])
         self.register_event('command', self.dispatch_command)
 
+        self.init()
+
     def __del__(self):
         self.stop()
 
     def _init_plugins(self):
+        return
         for plugin in plugins:
             plugin(self)
 
     def _start_plugins(self):
+        return
         for plugin in self._plugins:
             plugin.start()
 
+    def _stop_plugins(self):
+        return
+        for plugin in self._plugins:
+            plugin.stop()
+
     def _load_config(self):
-        pass
+        if os.path.exists(os.path.join(self._file_dir, 'config.ini')):
+            config_file = os.path.join(self._file_dir, 'config.ini')
+        else:
+            config_file = os.path.join(self._file_dir, 'config-default.ini')
+        config = ConfigParser.SafeConfigParser()
+        config.read(config_file)
+        self._config = {}
+        for section in config.sections():
+            self._config[section] = {}
+            for option in config.options(section):
+                self._config[section][option] = config.get(section,option)
 
     def _start_server(self):
         command = [
             'java',
             self._config['java']['extra_options'],
-            '-Xms%iM' % self._config['java']['heap_min'],
-            '-Xmx%iM' % self._config['java']['heap_max'],
+            '-Xms%s' % self._config['java']['heap_min'],
+            '-Xmx%s' % self._config['java']['heap_max'],
             '-jar',
             self._config['java']['server_jar'],
             'nogui',
@@ -54,11 +76,12 @@ class Wrapper(object):
             self._server_connection.stdout,
             sys.stdin]
         self._server_inputs = []
-        self._start_time = time.time()
+        self._server_start_time = time.time()
 
     def _stop_server(self):
-        self.raw_server_command('stop')
-        self._server_connection.wait()
+        if self._server_connection.poll() is None:
+            self.raw_server_command('stop')
+            self._server_connection.wait()
         self._server_connection = None
 
     def _run(self):
@@ -71,7 +94,8 @@ class Wrapper(object):
             except Exception:
                 continue
             for sock in read_ready:
-                line = sock.readline().strip()
+                line = sock.readline()
+                print line
                 if sock is sys.stdin:
                     self.log('stdin', line)
                     self.raw_server_command(line)
@@ -87,12 +111,14 @@ class Wrapper(object):
 
     def start(self):
         if not self._running:
-            self._start_server()
             self._running = True
+            self._start_plugins()
+            self._start_server()
             self._run()
 
     def stop(self):
         if self._running:
+            self._stop_plugins()
             self._stop_server()
             self._running = False
 
@@ -111,8 +137,7 @@ class Wrapper(object):
         try:
             self._commands[command]['callbacks'].append(callback)
         except KeyError:
-            self._commands[command] = {
-                'callbacks': [callback]}
+            self._commands[command]['callbacks'] = [callback]
 
     def unregister_command(self, command):
         try:
@@ -132,8 +157,7 @@ class Wrapper(object):
         try:
             self._events[event_name]['callbacks'].append(callback)
         except KeyError:
-            self._events[event_name] = {
-                'callbacks': [callback]}
+            self._events[event_name]['callbacks'] = [callback]
 
     def unregister_event(self, event_name):
         pass
@@ -151,13 +175,13 @@ class Wrapper(object):
             pass
 
     def dispatch_event(self, event_line):
-        for event in self._events:
-            for event_pattern in event_patterns:
+        for event_name in self._events:
+            for event_pattern in self._events[event_name]['patterns']:
                 match = event_pattern.search(event_line)
                 if match:
-                    for callback in event['callbacks']:
+                    for callback in self._events[event_name]['callbacks']:
                         callback(**match.groupdict())
                     break
 
     def raw_server_command(self, command):
-        self._server_connection.stdin.write(command.strip() + '\n')
+        self._server_connection.stdin.write(command.rstrip() + '\n')

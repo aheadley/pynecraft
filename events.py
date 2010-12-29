@@ -1,3 +1,5 @@
+# coding: utf-8
+
 tokens = {
     'time_stamp': r'^(?P<time_stamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})',
     'log_level': r'\[(?P<log_level>[A-Z]+)\]',
@@ -12,9 +14,9 @@ basic_events = {
         ' '.join([
             tokens['time_stamp'],
             tokens['log_level'],
-            r'§7' + tokens['player_varname'] % 'src',
+            u'§7' + tokens['player_varname'] % 'src',
             'whispers (?P<message>.*) to',
-            tokens['player_varname'] % 'dest'] + '$')],
+            tokens['player_varname'] % 'dest']) + '$'],
     'chat_message': [
         ' '.join([
             tokens['time_stamp'],
